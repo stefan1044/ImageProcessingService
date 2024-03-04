@@ -70,7 +70,7 @@ export function mountLoggingMiddleware(app: express.Application, options?: Optio
   };
 
   app.use(pinoHttp(pinoOptions));
-  if (!env.isProduction) {
-    app.use(responseBodyMiddleware);
-  }
+  // if (!env.isProduction) {
+  //   app.use(responseBodyMiddleware);
+  // }
 }

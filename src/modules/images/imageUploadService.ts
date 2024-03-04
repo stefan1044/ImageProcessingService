@@ -1,12 +1,11 @@
 import { NextFunction, Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import multer, { FileFilterCallback } from 'multer';
+import multer from 'multer';
 
 import { env } from '../../shared/utils/config';
 import { StorageModule } from '../storage/storageModule';
 
 export type DestinationCallback = (error: Error | null, destination: string) => void;
-export type FileNameCallback = (error: Error | null, filename: string) => void;
 
 /**
  * Service which provides functionality for uploading images,
@@ -45,47 +44,27 @@ export class ImageUploadService {
     this.allowNaming = env.ALLOW_NAMING;
     this.imageNameField = imageNameField;
 
-    const diskStorage = multer.diskStorage({
-      destination: (_req: Request, _file: Express.Multer.File, callback: DestinationCallback) => {
-        callback(null, StorageModule.permanentStorageDirectoryPath);
-      },
-      filename: (_req: Request, file: Express.Multer.File, callback: FileNameCallback) => {
-        let name: string;
+    const filename = (_req: Request, file: Express.Multer.File) => {
+      let name: string;
 
-        if (this.allowNaming) {
-          const isNamePresentInRequest = _req.body[this.imageNameField] != undefined;
+      if (this.allowNaming) {
+        const isNamePresentInRequest = _req.body[this.imageNameField] != undefined;
 
-          name = isNamePresentInRequest ? _req.body[this.imageNameField] : this.generateFileName();
-        } else {
-          name = this.generateFileName();
-        }
-
-        // While technically the extension could be undefined, fileFilter only allows image types for which we have
-        // extension names
-        const extension = ImageUploadService.mimetypeToExtensionMap.get(file.mimetype);
-
-        if (extension == undefined) throw new Error();
-
-        callback(null, `${name}.${ImageUploadService.mimetypeToExtensionMap.get(file.mimetype)}`);
-      },
-    });
-
-    function fileFilter(_request: Request, file: Express.Multer.File, callback: FileFilterCallback): void {
-      if (file.mimetype === 'image/png' || file.mimetype === 'image/jpg' || file.mimetype === 'image/jpeg') {
-        callback(null, true);
+        name = isNamePresentInRequest ? _req.body[this.imageNameField] : this.generateFileName();
       } else {
-        callback(null, false);
+        name = this.generateFileName();
       }
-    }
 
-    this.multerInstance = multer({
-      storage: diskStorage,
-      limits: {
-        fieldNameSize: env.MAX_NAME_SIZE,
-        fileSize: env.MAX_FILE_SIZE,
-      },
-      fileFilter: fileFilter,
-    });
+      // While technically the extension could be undefined, fileFilter only allows image types for which we have
+      // extension names
+      const extension = ImageUploadService.mimetypeToExtensionMap.get(file.mimetype);
+
+      if (extension == undefined) throw new Error();
+
+      return `${name}.${ImageUploadService.mimetypeToExtensionMap.get(file.mimetype)}`;
+    };
+
+    this.multerInstance = StorageModule.getMulterStorageEngine(filename);
   }
 
   private generateFileName(): string {
@@ -93,6 +72,7 @@ export class ImageUploadService {
     return randomName.toString();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private uploadImage(_request: Request, response: Response, _next: NextFunction) {
     const filename = _request.file?.filename;
     if (filename == undefined)
