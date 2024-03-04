@@ -1,4 +1,4 @@
-import { env } from '../../shared/utils/config';
+import { env } from '../config';
 
 export type ExtensionType = 'image/png' | 'image/jpg' | 'image/jpeg';
 
@@ -34,6 +34,10 @@ export class Resolution {
 
     this._height = height;
     this._width = width;
+  }
+
+  public isEqual(resolution: Resolution): boolean {
+    return this._height == resolution.height && this._width == resolution.width;
   }
 
   public get height(): number {

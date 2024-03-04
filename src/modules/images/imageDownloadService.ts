@@ -3,8 +3,8 @@ import { param, query, validationResult } from 'express-validator';
 import { StatusCodes } from 'http-status-codes';
 
 import { logger } from '../../server';
-import { Resolution } from '../storage/Image';
-import { StorageModule } from '../storage/storageModule';
+import { Resolution } from '../../shared/utils/types/Image';
+import { PersistentStorageModule } from '../storage/persistentStorageModule';
 
 export class ImageDownloadService {
   private readonly fileNameParameter: string;
@@ -18,7 +18,7 @@ export class ImageDownloadService {
     try {
       // We can be sure that request.params[this.fileNameParameter] is a string because to get here it must have passed
       // validation
-      const imageData = await StorageModule.getImage(
+      const imageData = await PersistentStorageModule.getImage(
         request.params[this.fileNameParameter] as string,
         request.body[this.resolutionQueryParameter],
       );

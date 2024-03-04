@@ -3,7 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
 
 import { env } from '../../shared/utils/config';
-import { StorageModule } from '../storage/storageModule';
+import { PersistentStorageModule } from '../storage/persistentStorageModule';
 
 export type DestinationCallback = (error: Error | null, destination: string) => void;
 
@@ -64,7 +64,7 @@ export class ImageUploadService {
       return `${name}.${ImageUploadService.mimetypeToExtensionMap.get(file.mimetype)}`;
     };
 
-    this.multerInstance = StorageModule.getMulterStorageEngine(filename);
+    this.multerInstance = PersistentStorageModule.getMulterStorageEngine(filename);
   }
 
   private generateFileName(): string {
