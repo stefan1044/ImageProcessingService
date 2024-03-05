@@ -73,7 +73,6 @@ export class PersistentStorageModule {
     const extension = 'image/' + file.ext.slice(1);
     if (!isExtensionType(extension)) return;
 
-    // const fileName = fullFileName.slice(0, fullFileName.lastIndexOf(file.ext));
     let memory = 0;
     try {
       memory = size == undefined ? (await fs.promises.stat(filePath)).size : size;
@@ -145,7 +144,9 @@ export class PersistentStorageModule {
         .then((_) => {
           callback(null);
 
-          const fileWriteStream = fs.createWriteStream(fileName);
+          const fileWriteStream = fs.createWriteStream(
+            `${PersistentStorageModule._permanentStorageDirectoryPath}/${fileName}`,
+          );
           sizedStream
             .pipe(fileWriteStream)
             .on('error', (err) => {
@@ -162,12 +163,14 @@ export class PersistentStorageModule {
       return;
     }
 
-    const fileWriteStream = fs.createWriteStream(fileName);
+    const fileWriteStream = fs.createWriteStream(
+      `${PersistentStorageModule._permanentStorageDirectoryPath}/${fileName}`,
+    );
     sizedStream
       .pipe(fileWriteStream)
       .on('error', (err) => {
         fileWriteStream.end();
-        callback(err);
+        callback(err, { filename: fileName });
       })
       .on('finish', async () => {
         await PersistentStorageModule.addImageToPermanentStorage(fileName);
@@ -177,9 +180,13 @@ export class PersistentStorageModule {
 
   private static multerRemoveFile(
     _request: Request,
-    _file: Express.Multer.File & { name: string },
-    _callback: (error: Error | null) => void,
-  ): void {}
+    file: Express.Multer.File & { filename: string },
+    callback: (error: Error | null) => void,
+  ): void {
+    fs.promises
+      .unlink(`${PersistentStorageModule._permanentStorageDirectoryPath}/${file.filename}`)
+      .then(() => callback(null));
+  }
 
   private static canUploadFile(size: number): CanUploadFileResponse {
     logger.info(

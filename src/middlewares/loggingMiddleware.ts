@@ -1,10 +1,8 @@
-import express, { Request, RequestHandler, Response } from 'express';
+import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { LevelWithSilent } from 'pino';
 import { CustomAttributeKeys, Options, pinoHttp } from 'pino-http';
-
-import { env } from '../shared/utils/config';
 
 const customAttributeKeys: CustomAttributeKeys = {
   req: 'request',
@@ -26,15 +24,15 @@ const customProps = (req: Request, res: Response): PinoCustomProps => ({
   responseBody: res.locals.responseBody,
 });
 
-const responseBodyMiddleware: RequestHandler = (_req, res, next) => {
-  const originalSend = res.send;
-  res.send = function (content) {
-    res.locals.responseBody = content;
-    res.send = originalSend;
-    return originalSend.call(res, content);
-  };
-  next();
-};
+// const responseBodyMiddleware: RequestHandler = (_req, res, next) => {
+//   const originalSend = res.send;
+//   res.send = function (content) {
+//     res.locals.responseBody = content;
+//     res.send = originalSend;
+//     return originalSend.call(res, content);
+//   };
+//   next();
+// };
 
 const customLogLevel = (_req: IncomingMessage, res: ServerResponse<IncomingMessage>, err?: Error): LevelWithSilent => {
   if (res.statusCode >= 400 && res.statusCode < 500) return 'warn';

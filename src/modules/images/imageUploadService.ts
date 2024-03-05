@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import multer from 'multer';
 
@@ -69,12 +69,13 @@ export class ImageUploadService {
 
   private generateFileName(): string {
     const randomName = Math.round(Math.random() * 1e9);
-    return randomName.toString();
+    return randomName.toString() + Date.now().toString();
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private uploadImage(_request: Request, response: Response, _next: NextFunction) {
-    const filename = _request.file?.filename;
+  private uploadImage(request: Request, response: Response) {
+    const filename = request.file?.filename;
+
     if (filename == undefined)
       return response.status(StatusCodes.INTERNAL_SERVER_ERROR).json(ImageUploadService.unknownErrorResponse());
 
@@ -85,7 +86,7 @@ export class ImageUploadService {
     const middlewares = [this.multerInstance.single(this.fileField)];
 
     // We have to push this last since this assumes a succesfull upload
-    middlewares.push(this.uploadImage);
+    middlewares.push((request: Request, response: Response) => this.uploadImage(request, response));
     return middlewares;
   }
 }

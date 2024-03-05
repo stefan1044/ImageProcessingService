@@ -120,6 +120,7 @@ export class CacheModule {
     };
   }
 
+  // Since we store everything on the same disk, we need this to check the available size
   get cachedImageDiskSize(): number {
     return this._cachedImageDiskSize;
   }
