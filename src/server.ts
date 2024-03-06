@@ -11,13 +11,13 @@ const logger = pino({ name: 'server start' });
 const app: Express = express();
 
 // To get around building complex dependency injection features for all modules I will just initiate the storage one here
-PersistentStorageModule.init().then((_) => {
+PersistentStorageModule.createInstance().then((persistentStorageModule) => {
   // Middlewares
   mountMiddlewares(app, logger);
 
   // Routes
-  mountHealthCheck(app);
-  mountImageRoutes(app);
+  mountHealthCheck(app, persistentStorageModule);
+  mountImageRoutes(app, persistentStorageModule);
 
   // Error handling
   mountDefaultRoute(app);

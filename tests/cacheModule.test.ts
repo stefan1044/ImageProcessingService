@@ -17,6 +17,19 @@ test('Create storage directory', async () => {
   expect(fs.existsSync(`${__dirname}/${storageDirectoryName}/${cacheDirectoryName}`));
 });
 
+test('Should return stats', async () => {
+  const uniqueDirectoryName = 'test5';
+
+  const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
+  const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
+  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  await cacheModule.init();
+
+  const stats = cacheModule.getStats();
+
+  expect(stats).toBeDefined();
+});
+
 test("Should return undefined if image doesn't exist", async () => {
   const uniqueDirectoryName = 'test2';
 
@@ -79,3 +92,26 @@ test('Should create image when caching', async () => {
 
   expect(fs.existsSync(Object.getPrototypeOf(cacheModule).getCacheImagePath(testImage, testImageRequestedResolution)));
 });
+
+test('Should get image from cache', async () => {
+  const uniqueDirectoryName = 'test6';
+
+  const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
+  const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
+  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  await cacheModule.init();
+
+  const testImagePath = `${__dirname}/test_image_1.jpg`;
+  const testImageBuffer = await fs.promises.readFile(testImagePath);
+  const testImage: Image = {
+    name: 'testImage.jpg',
+    contentType: 'image/jpg',
+    size: (await fs.promises.stat(testImagePath)).size,
+  };
+  const testImageRequestedResolution = new Resolution(600, 600);
+  await cacheModule.cacheImage(testImage, testImageRequestedResolution, testImageBuffer);
+  const cachedImage = await cacheModule.getImageFromCache(testImage, testImageRequestedResolution);
+
+  expect(cachedImage).toBeDefined();
+  expect(cacheModule.getStats().cachedImages).toBe(1);
+})

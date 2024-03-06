@@ -11,6 +11,8 @@ import { logger } from '../../server';
 import { env } from '../../shared/utils/config';
 import { Image, isExtensionType, Resolution } from '../../shared/utils/types/Image';
 import { CacheModule, CacheStatistics } from '../cacheModule/cacheModule';
+import {IPersistentStorageModule} from "./IPersistentStorageModule";
+import {FileNameCustomizationCallback} from "../../shared/utils/types/Callbacks";
 
 export const STORAGE_DIRECTORY_NAME = 'storage';
 const CACHE_DIRECTORY_NAME = 'temp';
@@ -21,8 +23,11 @@ class StorageModuleInitError extends Error {
   }
 }
 
-export type FileNameCallback = (error: Error | null, filename: string) => void;
-export type FileNameCustomizationCallback = (request: Request, file: Express.Multer.File) => string;
+
+export type GetImageType = {
+  image: Image,
+  buffer: Buffer
+}
 
 export enum CanUploadFileResponse {
   POSSIBLE,
@@ -38,20 +43,44 @@ export type StorageStatistics = {
  * Module for managing file storage. Can be considered the "model" in an MVC-style app, since images do not have much
  * structure.
  */
-export class PersistentStorageModule {
-  private static _permanentStorageDirectoryPath = `${__dirname}/${STORAGE_DIRECTORY_NAME}/${env.DEST}`;
+export class PersistentStorageModule implements IPersistentStorageModule{
+  private readonly _permanentStorageDirectoryPath: string;
+  private fileNameCustomizationCallback: FileNameCustomizationCallback = () => 'default';
 
-  private static cacheModule: CacheModule;
-  private static fileNameCustomizationCallback: FileNameCustomizationCallback;
+  private cacheModule: CacheModule;
+  private totalDiskSize: number = 0;
 
-  private static totalDiskSize: number;
+  private permanentImageDiskSize: number = 0;
+  private readonly permanentImages: Array<Image> = [];
 
-  private static permanentImageDiskSize: number = 0;
-  private static readonly permanentImages: Array<Image> = [];
+  private constructor() {
+    this._permanentStorageDirectoryPath = `${__dirname}/${STORAGE_DIRECTORY_NAME}/${env.DEST}`;
+    this.cacheModule = new CacheModule(STORAGE_DIRECTORY_NAME, CACHE_DIRECTORY_NAME);
+  }
 
-  private static async createDirectories(): Promise<void> {
+  private async init(): Promise<void> {
+    await this.createDirectories();
+    await this.initMemory();
+    await this.cacheModule.init();
+
+    const wasSuccessful = await this.getExistingImages();
+    logger.info(this.permanentImages);
+
+    if (!wasSuccessful) {
+      throw new Error();
+    }
+  }
+
+  public static async createInstance(): Promise<PersistentStorageModule> {
+    const instance = new PersistentStorageModule();
+    await instance.init();
+
+    return instance
+  }
+
+  private async createDirectories(): Promise<void> {
     try {
-      await mkdirp(PersistentStorageModule._permanentStorageDirectoryPath);
+      await mkdirp(this._permanentStorageDirectoryPath);
     } catch (err) {
       logger.error(err);
       throw new StorageModuleInitError();
@@ -65,8 +94,8 @@ export class PersistentStorageModule {
    * the size directly to avoid calculating it
    * @private
    */
-  private static async addImageToPermanentStorage(fullFileName: string, size?: number): Promise<void> {
-    const filePath = `${PersistentStorageModule._permanentStorageDirectoryPath}/${fullFileName}`;
+  private async addImageToPermanentStorage(fullFileName: string, size?: number): Promise<void> {
+    const filePath = `${this._permanentStorageDirectoryPath}/${fullFileName}`;
     const file = Path.parse(filePath);
 
     // We slice from 1 since the first char is the dot
@@ -90,30 +119,30 @@ export class PersistentStorageModule {
     this.permanentImages.push(image);
   }
 
-  private static async getExistingImages(): Promise<boolean> {
+  private async getExistingImages(): Promise<boolean> {
     let files: Array<string>;
 
     try {
-      files = await fs.promises.readdir(PersistentStorageModule._permanentStorageDirectoryPath);
+      files = await fs.promises.readdir(this._permanentStorageDirectoryPath);
     } catch (err) {
       logger.error(err);
       return false;
     }
 
     for (const fullFileName of files) {
-      await PersistentStorageModule.addImageToPermanentStorage(fullFileName);
+      await this.addImageToPermanentStorage(fullFileName);
     }
 
     return true;
   }
 
-  private static async initMemory(): Promise<void> {
-    const diskSpace = await checkDiskSpace(PersistentStorageModule._permanentStorageDirectoryPath);
+  private async initMemory(): Promise<void> {
+    const diskSpace = await checkDiskSpace(this._permanentStorageDirectoryPath);
 
-    PersistentStorageModule.totalDiskSize = diskSpace.size;
+    this.totalDiskSize = diskSpace.size;
   }
 
-  private static multerFileFilter(_request: Request, file: Express.Multer.File, callback: FileFilterCallback): void {
+  private multerFileFilter(_request: Request, file: Express.Multer.File, callback: FileFilterCallback): void {
     if (!(file.mimetype === 'image/png' || file.mimetype === 'image/jpg' || file.mimetype === 'image/jpeg')) {
       logger.info(`Received wrong format!\nFormat received was ${file.mimetype}`);
       callback(null, false);
@@ -123,29 +152,29 @@ export class PersistentStorageModule {
     callback(null, true);
   }
 
-  private static multerHandleFile(
+  private multerHandleFile(
     request: Request,
     file: Express.Multer.File,
     callback: (error?: unknown, info?: Partial<Express.Multer.File>) => void,
   ): void {
     const sizedStream = file.stream.pipe(getSizeTransform(env.MAX_FILE_SIZE));
-    const canUploadFile = PersistentStorageModule.canUploadFile(sizedStream.sizeInBytes);
+    const canUploadFile = this.canUploadFile(sizedStream.sizeInBytes);
 
     if (canUploadFile == CanUploadFileResponse.NOT_POSSIBLE) {
       callback(new Error('Insufficient size available!'));
       return;
     }
-    const fileName = PersistentStorageModule.fileNameCustomizationCallback(request, file);
+    const fileName = this.fileNameCustomizationCallback(request, file);
 
     if (canUploadFile == CanUploadFileResponse.NEEDS_CACHE_CLEAR) {
-      PersistentStorageModule.cacheModule
+      this.cacheModule
         .clearCacheToFit(sizedStream.sizeInBytes)
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .then((_) => {
           callback(null);
 
           const fileWriteStream = fs.createWriteStream(
-            `${PersistentStorageModule._permanentStorageDirectoryPath}/${fileName}`,
+            `${this._permanentStorageDirectoryPath}/${fileName}`,
           );
           sizedStream
             .pipe(fileWriteStream)
@@ -154,7 +183,7 @@ export class PersistentStorageModule {
               callback(err);
             })
             .on('finish', async () => {
-              await PersistentStorageModule.addImageToPermanentStorage(fileName);
+              await this.addImageToPermanentStorage(fileName);
               callback(null, { filename: fileName });
             });
         })
@@ -164,7 +193,7 @@ export class PersistentStorageModule {
     }
 
     const fileWriteStream = fs.createWriteStream(
-      `${PersistentStorageModule._permanentStorageDirectoryPath}/${fileName}`,
+      `${this._permanentStorageDirectoryPath}/${fileName}`,
     );
     sizedStream
       .pipe(fileWriteStream)
@@ -173,38 +202,38 @@ export class PersistentStorageModule {
         callback(err, { filename: fileName });
       })
       .on('finish', async () => {
-        await PersistentStorageModule.addImageToPermanentStorage(fileName);
+        await this.addImageToPermanentStorage(fileName);
         callback(null, { filename: fileName });
       });
   }
 
-  private static multerRemoveFile(
+  private multerRemoveFile(
     _request: Request,
     file: Express.Multer.File & { filename: string },
     callback: (error: Error | null) => void,
   ): void {
     fs.promises
-      .unlink(`${PersistentStorageModule._permanentStorageDirectoryPath}/${file.filename}`)
+      .unlink(`${this._permanentStorageDirectoryPath}/${file.filename}`)
       .then(() => callback(null));
   }
 
-  private static canUploadFile(size: number): CanUploadFileResponse {
+  private canUploadFile(size: number): CanUploadFileResponse {
     logger.info(
-      `${PersistentStorageModule.permanentImageDiskSize}\n${this.cacheModule.cachedImageDiskSize}\n${PersistentStorageModule.totalDiskSize}\n${size}`,
+      `${this.permanentImageDiskSize}\n${this.cacheModule.cachedImageDiskSize}\n${this.totalDiskSize}\n${size}`,
     );
     if (
-      PersistentStorageModule.permanentImageDiskSize + this.cacheModule.cachedImageDiskSize + size <
-      PersistentStorageModule.totalDiskSize
+      this.permanentImageDiskSize + this.cacheModule.cachedImageDiskSize + size <
+      this.totalDiskSize
     )
       return CanUploadFileResponse.POSSIBLE;
 
-    if (PersistentStorageModule.permanentImageDiskSize + size < PersistentStorageModule.totalDiskSize)
+    if (this.permanentImageDiskSize + size < this.totalDiskSize)
       return CanUploadFileResponse.NEEDS_CACHE_CLEAR;
 
     return CanUploadFileResponse.NOT_POSSIBLE;
   }
 
-  private static async getResizedImage(image: Image, resolution: Resolution): Promise<Buffer> {
+  private async getResizedImage(image: Image, resolution: Resolution): Promise<Buffer> {
     const cachedImage = await this.cacheModule.getImageFromCache(image, resolution);
     if (cachedImage != undefined) {
       logger.info('Got from cache!');
@@ -212,7 +241,7 @@ export class PersistentStorageModule {
     }
 
     const imageBuffer = await fs.promises.readFile(
-      `${PersistentStorageModule._permanentStorageDirectoryPath}/${image.name}`,
+      `${this._permanentStorageDirectoryPath}/${image.name}`,
     );
 
     const resizedImage = sharp(imageBuffer, {
@@ -226,31 +255,22 @@ export class PersistentStorageModule {
     return await resizedImage.toBuffer();
   }
 
-  public static async init(): Promise<void> {
-    await PersistentStorageModule.createDirectories();
-    await PersistentStorageModule.initMemory();
-    PersistentStorageModule.cacheModule = new CacheModule(STORAGE_DIRECTORY_NAME, CACHE_DIRECTORY_NAME);
-    await PersistentStorageModule.cacheModule.init();
-    const wasSuccessful = await PersistentStorageModule.getExistingImages();
-    logger.info(PersistentStorageModule.permanentImages);
-
-    if (!wasSuccessful) {
-      throw new Error();
-    }
-  }
-
-  public static getStats(): StorageStatistics & CacheStatistics {
+  public getStats(): StorageStatistics & CacheStatistics {
     return {
-      permanentImages: PersistentStorageModule.permanentImages.length,
-      ...PersistentStorageModule.cacheModule.getStats(),
+      permanentImages: this.permanentImages.length,
+      ...this.cacheModule.getStats(),
     };
   }
 
-  public static getMulterStorageEngine(fileNameCustomizationCallback: FileNameCustomizationCallback): multer.Multer {
-    PersistentStorageModule.fileNameCustomizationCallback = fileNameCustomizationCallback;
+  public getStoreImageMiddleware(fileNameCustomizationCallback: FileNameCustomizationCallback, fieldName: string) {
+    this.fileNameCustomizationCallback = fileNameCustomizationCallback;
 
-    const handleFile = PersistentStorageModule.multerHandleFile;
-    const removeFile = PersistentStorageModule.multerRemoveFile;
+    const handleFile = (request: Request,
+                        file: Express.Multer.File,
+                        callback: (error?: unknown, info?: Partial<Express.Multer.File>) => void,) => this.multerHandleFile(request, file, callback);
+    const removeFile = (_request: Request,
+                        file: Express.Multer.File & { filename: string },
+                        callback: (error: Error | null) => void,) => this.multerRemoveFile(_request, file, callback);
 
     return multer({
       storage: {
@@ -261,8 +281,8 @@ export class PersistentStorageModule {
         fieldNameSize: env.MAX_NAME_SIZE,
         fileSize: env.MAX_FILE_SIZE,
       },
-      fileFilter: PersistentStorageModule.multerFileFilter,
-    });
+      fileFilter: this.multerFileFilter,
+    }).single(fieldName);
   }
 
   /**
@@ -272,12 +292,12 @@ export class PersistentStorageModule {
    * @param resolution If the resolution is specified, it means we want to resize the image, and we will try to get it
    * from the cache first before resizing.
    */
-  public static async getImage(name: string, resolution?: Resolution) {
-    const image = PersistentStorageModule.permanentImages.find((image) => image.name == name);
+  public async getImage(name: string, resolution?: Resolution): Promise<GetImageType | undefined> {
+    const image = this.permanentImages.find((image) => image.name == name);
     if (image == undefined) return undefined;
 
     if (resolution != undefined) {
-      const resizedImage = await PersistentStorageModule.getResizedImage(image, resolution);
+      const resizedImage = await this.getResizedImage(image, resolution);
 
       return {
         image: image,
@@ -286,7 +306,7 @@ export class PersistentStorageModule {
     }
 
     const imageBuffer = await fs.promises.readFile(
-      `${PersistentStorageModule._permanentStorageDirectoryPath}/${image.name}`,
+      `${this._permanentStorageDirectoryPath}/${image.name}`,
     );
 
     return {

@@ -4,7 +4,7 @@
   "description": "",
   "main": "main.ts",
   "scripts": {
-    "dev": "tsx watch src/main.ts | pino-pretty",
+    "dev": "nodemon | pino-pretty",
     "dev-docker": "nodemon | pino-pretty",
     "build": "rimraf dist && tsc",
     "build-linux": "rm -rf dist; tsc",

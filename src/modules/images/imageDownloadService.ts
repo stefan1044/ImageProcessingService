@@ -9,8 +9,10 @@ import { PersistentStorageModule } from '../storage/persistentStorageModule';
 export class ImageDownloadService {
   private readonly fileNameParameter: string;
   private readonly resolutionQueryParameter: string;
+  private readonly storageModule: PersistentStorageModule;
 
-  constructor(fileNameParameter: string, resolutionQueryParameter: string) {
+  constructor(fileNameParameter: string, resolutionQueryParameter: string, storageModule: PersistentStorageModule) {
+    this.storageModule = storageModule;
     this.fileNameParameter = fileNameParameter;
     this.resolutionQueryParameter = resolutionQueryParameter;
   }
@@ -18,7 +20,7 @@ export class ImageDownloadService {
     try {
       // We can be sure that request.params[this.fileNameParameter] is a string because to get here it must have passed
       // validation
-      const imageData = await PersistentStorageModule.getImage(
+      const imageData = await this.storageModule.getImage(
         request.params[this.fileNameParameter] as string,
         request.body[this.resolutionQueryParameter],
       );
