@@ -1,8 +1,9 @@
-import { GetImageType, StorageStatistics} from "./persistentStorageModule";
-import {Resolution} from "../../shared/utils/types/Image";
-import {FileNameCustomizationCallback} from "../../shared/utils/types/Callbacks";
-import {RequestHandler} from "express";
+import { RequestHandler } from 'express';
 
+import { FileNameCustomizationCallback } from '../../shared/utils/types/Callbacks';
+import { Resolution } from '../../shared/utils/types/Image';
+
+import { GetImageType, StorageStatistics } from './persistentStorageModule';
 
 /**
  * Interface for providing a persistent storage mechanism for images. The module is static since there should be a
@@ -18,7 +19,10 @@ import {RequestHandler} from "express";
  * image.
  */
 export interface IPersistentStorageModule {
-    getStats(): StorageStatistics;
-    getStoreImageMiddleware(fileNameCustomizationCallback: FileNameCustomizationCallback, fieldName: string): RequestHandler;
-    getImage(name: string, resolution?: Resolution): Promise<GetImageType | undefined>;
+  getStats(): StorageStatistics;
+  getStoreImageMiddleware(
+    fileNameCustomizationCallback: FileNameCustomizationCallback,
+    fieldName: string,
+  ): RequestHandler;
+  getImage(name: string, resolution?: Resolution): Promise<GetImageType | undefined>;
 }

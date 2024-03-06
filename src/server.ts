@@ -1,17 +1,19 @@
 import express, { Express } from 'express';
-import { pino } from 'pino';
 
 import { mountDefaultRoute } from './middlewares/fallbackRoute';
 import { mountHealthCheck } from './middlewares/healthCheckRoute';
+import { logger } from './middlewares/loggingMiddleware';
 import { PersistentStorageModule } from './modules/storage/persistentStorageModule';
 import { mountImageRoutes } from './routes/imageRoutes';
 import { mountMiddlewares } from './routes/middlewareRoutes';
+import { env } from './shared/utils/config';
 
-const logger = pino({ name: 'server start' });
 const app: Express = express();
 
+const STORAGE_DIRECTORY_NAME = 'storage';
+
 // To get around building complex dependency injection features for all modules I will just initiate the storage one here
-PersistentStorageModule.createInstance().then((persistentStorageModule) => {
+PersistentStorageModule.createInstance(STORAGE_DIRECTORY_NAME, env.DEST).then((persistentStorageModule) => {
   // Middlewares
   mountMiddlewares(app, logger);
 
@@ -23,4 +25,4 @@ PersistentStorageModule.createInstance().then((persistentStorageModule) => {
   mountDefaultRoute(app);
 });
 
-export { app, logger };
+export { app };

@@ -3,7 +3,7 @@ FROM node:20-alpine as nodejs
 WORKDIR /app
 
 COPY package.json package.json
-RUN npm install
+RUN npm install --include=optional
 
 COPY . .
 

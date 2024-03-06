@@ -2,9 +2,11 @@ import fs from 'fs';
 import { mkdirp } from 'mkdirp';
 import { rimraf } from 'rimraf';
 
-import { logger } from '../../server';
+import { logger } from '../../middlewares/loggingMiddleware';
 import PriorityQueue from '../../shared/priorityQueue/priorityQueue';
 import { CachedImage, Image, Resolution } from '../../shared/utils/types/Image';
+
+import { ICacheModule } from './ICacheModule';
 
 export type CacheStatistics = {
   cachedImages: number;
@@ -12,7 +14,7 @@ export type CacheStatistics = {
   cacheMissRatio: number;
 };
 
-export class CacheModule {
+export class OnDiskCacheModule implements ICacheModule {
   private readonly cacheDirectoryName: string;
   private readonly storageDirectoryName: string;
   private readonly _cacheStorageDirectoryPath: string;
@@ -42,12 +44,39 @@ export class CacheModule {
 
   // We can use this to get what the path of an existing cached image is. This does not guarantee that the image
   // actually exists, it just calculates the path.
-  private getCacheImagePath(image: Image, resolution: Resolution): string {
+  private getCacheImagePath(cachedImage: CachedImage): string {
+    return `${this._cacheStorageDirectoryPath}/${cachedImage.resolution.height}x${cachedImage.resolution.width}${cachedImage.originalName}`;
+  }
+
+  // We use this to calculate what the path of an image will be once cached.
+  private calculateImagePath(image: Image, resolution: Resolution): string {
     return `${this._cacheStorageDirectoryPath}/${resolution.height}x${resolution.width}${image.name}`;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public async clearCacheToFit(_size: number): Promise<void> {}
+  // Since this is also stored on disk, we need a way to clear this storage in case we want to add more permanent images
+  public async requestMemoryClear(size: number): Promise<boolean> {
+    let currentFreedSize = 0;
+
+    while (currentFreedSize < size && this.priorityQueue.getSize() != 0) {
+      // We know this is not undefined since we checked for length at the beginning of the loop
+      const cachedImage = this.priorityQueue.dequeue()!;
+      const cachedImageIndex = this.cachedImages.indexOf(cachedImage);
+
+      this.cachedImages.splice(cachedImageIndex, 1);
+      try {
+        await fs.promises.unlink(this.getCacheImagePath(cachedImage));
+      } catch (err) {
+        logger.error(err);
+        // Since we can't know for sure if the image was removed, we won't count its memory towards the freed size
+        continue;
+      }
+      this._cachedImageDiskSize -= cachedImage.size;
+      currentFreedSize += cachedImage.size;
+    }
+
+    // If we emptied the cache but didn't manage to free enough memory we return false
+    return !(this.priorityQueue.getSize() == 0 && currentFreedSize < size);
+  }
 
   public async cacheImage(image: Image, resolution: Resolution, buffer: Buffer): Promise<void> {
     const isImageCached = this.cachedImages.some(
@@ -55,7 +84,7 @@ export class CacheModule {
     );
     if (isImageCached) return;
 
-    const filePath = this.getCacheImagePath(image, resolution);
+    const filePath = this.calculateImagePath(image, resolution);
     try {
       await fs.promises.writeFile(filePath, buffer);
       logger.info('Cached image');
@@ -68,6 +97,7 @@ export class CacheModule {
         resolution: resolution,
       };
 
+      this._cachedImageDiskSize += size;
       this.cachedImages.push(cachedImage);
 
       const currentPriority = this.priorityMap.get(cachedImage.originalName);
@@ -85,7 +115,7 @@ export class CacheModule {
     }
   }
 
-  public async getImageFromCache(image: Image, resolution: Resolution): Promise<Buffer | undefined> {
+  public async getImage(image: Image, resolution: Resolution): Promise<Buffer | undefined> {
     const cachedImage = this.cachedImages.find((cachedImageInstance) => {
       return cachedImageInstance.originalName == image.name && cachedImageInstance.resolution.isEqual(resolution);
     });
@@ -96,7 +126,7 @@ export class CacheModule {
       return undefined;
     }
 
-    const cachedImageFilePath = this.getCacheImagePath(image, resolution);
+    const cachedImageFilePath = this.calculateImagePath(image, resolution);
     try {
       this.cacheHitRatio++;
       this.priorityQueue.modifyPriority(

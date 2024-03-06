@@ -2,20 +2,26 @@ import { NextFunction, Request, Response } from 'express';
 import { param, query, validationResult } from 'express-validator';
 import { StatusCodes } from 'http-status-codes';
 
-import { logger } from '../../server';
-import { Resolution } from '../../shared/utils/types/Image';
-import { PersistentStorageModule } from '../storage/persistentStorageModule';
+import { logger } from '../../../middlewares/loggingMiddleware';
+import { Resolution } from '../../../shared/utils/types/Image';
+import { IPersistentStorageModule } from '../../storage/IPersistentStorageModule';
+
+import { GeneralErrorRetrievingImageDto } from './dto/GeneralErrorRetrievingImageDto';
+import { ImageNotFoundDto } from './dto/ImageNotFoundDto';
+import { ValidationErrorDto } from './dto/ValidationErrorDto';
+import { WrongResolutionDto } from './dto/WrongResolutionDto';
 
 export class ImageDownloadService {
   private readonly fileNameParameter: string;
   private readonly resolutionQueryParameter: string;
-  private readonly storageModule: PersistentStorageModule;
+  private readonly storageModule: IPersistentStorageModule;
 
-  constructor(fileNameParameter: string, resolutionQueryParameter: string, storageModule: PersistentStorageModule) {
+  constructor(fileNameParameter: string, resolutionQueryParameter: string, storageModule: IPersistentStorageModule) {
     this.storageModule = storageModule;
     this.fileNameParameter = fileNameParameter;
     this.resolutionQueryParameter = resolutionQueryParameter;
   }
+
   private async downloadImage(request: Request, response: Response) {
     try {
       // We can be sure that request.params[this.fileNameParameter] is a string because to get here it must have passed
@@ -26,22 +32,19 @@ export class ImageDownloadService {
       );
 
       if (imageData == undefined) {
-        return response.status(StatusCodes.NOT_FOUND).json({
-          message: 'Image could not be found!',
-        });
+        return response.status(StatusCodes.NOT_FOUND).json(ImageNotFoundDto());
       }
 
       return response.contentType(imageData.image.contentType).send(imageData.buffer);
     } catch (err) {
       logger.error(err);
-      return response.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        error: 'There was an error retrieving the image!',
-      });
+      return response.status(StatusCodes.INTERNAL_SERVER_ERROR).json(GeneralErrorRetrievingImageDto());
     }
   }
 
   private parseResolution(queryParam: string): Resolution | undefined {
     const splitQueryParam = queryParam.split('x');
+
     if (splitQueryParam.length != 2) return undefined;
     if (splitQueryParam[0] == undefined || splitQueryParam[1] == undefined) return undefined;
 
@@ -55,9 +58,7 @@ export class ImageDownloadService {
     const result = validationResult(request);
 
     if (!result.isEmpty()) {
-      return response.status(StatusCodes.BAD_REQUEST).json({
-        error: 'validation error',
-      });
+      return response.status(StatusCodes.BAD_REQUEST).json(ValidationErrorDto());
     }
 
     const resolutionQueryParam = request.query[this.resolutionQueryParameter];
@@ -67,9 +68,7 @@ export class ImageDownloadService {
     }
 
     if (typeof resolutionQueryParam != 'string') {
-      return response.status(StatusCodes.BAD_REQUEST).json({
-        error: 'validation error',
-      });
+      return response.status(StatusCodes.BAD_REQUEST).json(ValidationErrorDto());
     }
 
     try {
@@ -80,9 +79,7 @@ export class ImageDownloadService {
     } catch (err) {
       logger.error(err);
 
-      return response.status(StatusCodes.BAD_REQUEST).json({
-        error: 'validation error',
-      });
+      return response.status(StatusCodes.BAD_REQUEST).json(WrongResolutionDto());
     }
 
     return next();
@@ -94,7 +91,6 @@ export class ImageDownloadService {
       query('resolution').optional({
         values: 'undefined',
       }),
-      // We need to provide this as a callback, otherwise this will not be defined inside the function
       (request: Request, response: Response, next: NextFunction) => this.validateInput(request, response, next),
       (request: Request, response: Response) => this.downloadImage(request, response),
     ];

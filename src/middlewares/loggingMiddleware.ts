@@ -1,8 +1,10 @@
 import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { LevelWithSilent } from 'pino';
+import { LevelWithSilent, pino } from 'pino';
 import { CustomAttributeKeys, Options, pinoHttp } from 'pino-http';
+
+export const logger = pino({ name: 'server start' });
 
 const customAttributeKeys: CustomAttributeKeys = {
   req: 'request',

@@ -7,14 +7,14 @@ import * as Path from 'path';
 import sharp from 'sharp';
 import getSizeTransform from 'stream-size';
 
-import { logger } from '../../server';
+import { logger } from '../../middlewares/loggingMiddleware';
 import { env } from '../../shared/utils/config';
+import { FileNameCustomizationCallback } from '../../shared/utils/types/Callbacks';
 import { Image, isExtensionType, Resolution } from '../../shared/utils/types/Image';
-import { CacheModule, CacheStatistics } from '../cacheModule/cacheModule';
-import {IPersistentStorageModule} from "./IPersistentStorageModule";
-import {FileNameCustomizationCallback} from "../../shared/utils/types/Callbacks";
+import { CacheStatistics, OnDiskCacheModule } from '../cacheModule/onDiskCacheModule';
 
-export const STORAGE_DIRECTORY_NAME = 'storage';
+import { IPersistentStorageModule } from './IPersistentStorageModule';
+
 const CACHE_DIRECTORY_NAME = 'temp';
 
 class StorageModuleInitError extends Error {
@@ -23,11 +23,10 @@ class StorageModuleInitError extends Error {
   }
 }
 
-
 export type GetImageType = {
-  image: Image,
-  buffer: Buffer
-}
+  image: Image;
+  buffer: Buffer;
+};
 
 export enum CanUploadFileResponse {
   POSSIBLE,
@@ -40,22 +39,28 @@ export type StorageStatistics = {
 };
 
 /**
- * Module for managing file storage. Can be considered the "model" in an MVC-style app, since images do not have much
- * structure.
+ * Module for managing file storage on disk. Can be considered the "model" in an MVC-style app, since images do not have
+ * much structure.
  */
-export class PersistentStorageModule implements IPersistentStorageModule{
+export class PersistentStorageModule implements IPersistentStorageModule {
   private readonly _permanentStorageDirectoryPath: string;
   private fileNameCustomizationCallback: FileNameCustomizationCallback = () => 'default';
 
-  private cacheModule: CacheModule;
+  private cacheModule: OnDiskCacheModule;
   private totalDiskSize: number = 0;
 
   private permanentImageDiskSize: number = 0;
   private readonly permanentImages: Array<Image> = [];
 
-  private constructor() {
-    this._permanentStorageDirectoryPath = `${__dirname}/${STORAGE_DIRECTORY_NAME}/${env.DEST}`;
-    this.cacheModule = new CacheModule(STORAGE_DIRECTORY_NAME, CACHE_DIRECTORY_NAME);
+  private constructor(storageDirectoryName: string, permanentStorageDirectoryName: string) {
+    this._permanentStorageDirectoryPath = `${__dirname}/${storageDirectoryName}/${permanentStorageDirectoryName}`;
+    this.cacheModule = new OnDiskCacheModule(storageDirectoryName, CACHE_DIRECTORY_NAME);
+  }
+
+  private async initMemory(): Promise<void> {
+    const diskSpace = await checkDiskSpace(this._permanentStorageDirectoryPath);
+
+    this.totalDiskSize = diskSpace.size;
   }
 
   private async init(): Promise<void> {
@@ -71,11 +76,20 @@ export class PersistentStorageModule implements IPersistentStorageModule{
     }
   }
 
-  public static async createInstance(): Promise<PersistentStorageModule> {
-    const instance = new PersistentStorageModule();
+  /**
+   * Factory method to create an instance of PersistentStorageModule.
+   * @param storageDirectoryName The base directory for storage. Inside, the directory for permanent storage and cache
+   * storage will be made.
+   * @param permanentStorageDirectoryName The name of the permanent storage directory.
+   */
+  public static async createInstance(
+    storageDirectoryName: string,
+    permanentStorageDirectoryName: string,
+  ): Promise<IPersistentStorageModule> {
+    const instance = new PersistentStorageModule(storageDirectoryName, permanentStorageDirectoryName);
     await instance.init();
 
-    return instance
+    return instance;
   }
 
   private async createDirectories(): Promise<void> {
@@ -136,12 +150,6 @@ export class PersistentStorageModule implements IPersistentStorageModule{
     return true;
   }
 
-  private async initMemory(): Promise<void> {
-    const diskSpace = await checkDiskSpace(this._permanentStorageDirectoryPath);
-
-    this.totalDiskSize = diskSpace.size;
-  }
-
   private multerFileFilter(_request: Request, file: Express.Multer.File, callback: FileFilterCallback): void {
     if (!(file.mimetype === 'image/png' || file.mimetype === 'image/jpg' || file.mimetype === 'image/jpeg')) {
       logger.info(`Received wrong format!\nFormat received was ${file.mimetype}`);
@@ -168,14 +176,14 @@ export class PersistentStorageModule implements IPersistentStorageModule{
 
     if (canUploadFile == CanUploadFileResponse.NEEDS_CACHE_CLEAR) {
       this.cacheModule
-        .clearCacheToFit(sizedStream.sizeInBytes)
+        .requestMemoryClear(
+          sizedStream.sizeInBytes + this.totalDiskSize + this.cacheModule.cachedImageDiskSize - this.totalDiskSize,
+        )
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .then((_) => {
           callback(null);
 
-          const fileWriteStream = fs.createWriteStream(
-            `${this._permanentStorageDirectoryPath}/${fileName}`,
-          );
+          const fileWriteStream = fs.createWriteStream(`${this._permanentStorageDirectoryPath}/${fileName}`);
           sizedStream
             .pipe(fileWriteStream)
             .on('error', (err) => {
@@ -192,9 +200,7 @@ export class PersistentStorageModule implements IPersistentStorageModule{
       return;
     }
 
-    const fileWriteStream = fs.createWriteStream(
-      `${this._permanentStorageDirectoryPath}/${fileName}`,
-    );
+    const fileWriteStream = fs.createWriteStream(`${this._permanentStorageDirectoryPath}/${fileName}`);
     sizedStream
       .pipe(fileWriteStream)
       .on('error', (err) => {
@@ -212,37 +218,27 @@ export class PersistentStorageModule implements IPersistentStorageModule{
     file: Express.Multer.File & { filename: string },
     callback: (error: Error | null) => void,
   ): void {
-    fs.promises
-      .unlink(`${this._permanentStorageDirectoryPath}/${file.filename}`)
-      .then(() => callback(null));
+    fs.promises.unlink(`${this._permanentStorageDirectoryPath}/${file.filename}`).then(() => callback(null));
   }
 
-  private canUploadFile(size: number): CanUploadFileResponse {
-    logger.info(
-      `${this.permanentImageDiskSize}\n${this.cacheModule.cachedImageDiskSize}\n${this.totalDiskSize}\n${size}`,
-    );
-    if (
-      this.permanentImageDiskSize + this.cacheModule.cachedImageDiskSize + size <
-      this.totalDiskSize
-    )
+  private canUploadFile(size: number) {
+    const permanentStorageNeeded = this.permanentImageDiskSize + size;
+    if (permanentStorageNeeded + this.cacheModule.cachedImageDiskSize < this.totalDiskSize)
       return CanUploadFileResponse.POSSIBLE;
 
-    if (this.permanentImageDiskSize + size < this.totalDiskSize)
-      return CanUploadFileResponse.NEEDS_CACHE_CLEAR;
+    if (permanentStorageNeeded < this.totalDiskSize) return CanUploadFileResponse.NEEDS_CACHE_CLEAR;
 
     return CanUploadFileResponse.NOT_POSSIBLE;
   }
 
   private async getResizedImage(image: Image, resolution: Resolution): Promise<Buffer> {
-    const cachedImage = await this.cacheModule.getImageFromCache(image, resolution);
+    const cachedImage = await this.cacheModule.getImage(image, resolution);
     if (cachedImage != undefined) {
       logger.info('Got from cache!');
       return cachedImage;
     }
 
-    const imageBuffer = await fs.promises.readFile(
-      `${this._permanentStorageDirectoryPath}/${image.name}`,
-    );
+    const imageBuffer = await fs.promises.readFile(`${this._permanentStorageDirectoryPath}/${image.name}`);
 
     const resizedImage = sharp(imageBuffer, {
       // This is set to true in case there is some error with the validation so the memory doesn't get filled
@@ -265,12 +261,16 @@ export class PersistentStorageModule implements IPersistentStorageModule{
   public getStoreImageMiddleware(fileNameCustomizationCallback: FileNameCustomizationCallback, fieldName: string) {
     this.fileNameCustomizationCallback = fileNameCustomizationCallback;
 
-    const handleFile = (request: Request,
-                        file: Express.Multer.File,
-                        callback: (error?: unknown, info?: Partial<Express.Multer.File>) => void,) => this.multerHandleFile(request, file, callback);
-    const removeFile = (_request: Request,
-                        file: Express.Multer.File & { filename: string },
-                        callback: (error: Error | null) => void,) => this.multerRemoveFile(_request, file, callback);
+    const handleFile = (
+      request: Request,
+      file: Express.Multer.File,
+      callback: (error?: unknown, info?: Partial<Express.Multer.File>) => void,
+    ) => this.multerHandleFile(request, file, callback);
+    const removeFile = (
+      _request: Request,
+      file: Express.Multer.File & { filename: string },
+      callback: (error: Error | null) => void,
+    ) => this.multerRemoveFile(_request, file, callback);
 
     return multer({
       storage: {
@@ -305,9 +305,7 @@ export class PersistentStorageModule implements IPersistentStorageModule{
       };
     }
 
-    const imageBuffer = await fs.promises.readFile(
-      `${this._permanentStorageDirectoryPath}/${image.name}`,
-    );
+    const imageBuffer = await fs.promises.readFile(`${this._permanentStorageDirectoryPath}/${image.name}`);
 
     return {
       image: image,

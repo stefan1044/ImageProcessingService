@@ -1,5 +1,6 @@
+import { logger } from './middlewares/loggingMiddleware';
 import { env } from './shared/utils/config';
-import { app, logger } from './server';
+import { app } from './server';
 
 const server = app.listen(env.PORT, () => {
   logger.info(`Server running on port ${env.PORT}`);

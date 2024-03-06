@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { CacheModule } from '../src/modules/cacheModule/cacheModule';
+import { OnDiskCacheModule } from '../src/modules/cacheModule/onDiskCacheModule';
 import { Image, Resolution } from '../src/shared/utils/types/Image';
 
 const STORAGE_DIRECTORY_NAME = 'storage';
@@ -11,7 +11,7 @@ test('Create storage directory', async () => {
 
   const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
   const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
-  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
   await cacheModule.init();
 
   expect(fs.existsSync(`${__dirname}/${storageDirectoryName}/${cacheDirectoryName}`));
@@ -22,7 +22,7 @@ test('Should return stats', async () => {
 
   const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
   const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
-  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
   await cacheModule.init();
 
   const stats = cacheModule.getStats();
@@ -35,10 +35,10 @@ test("Should return undefined if image doesn't exist", async () => {
 
   const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
   const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
-  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
   await cacheModule.init();
 
-  const cachedImage = await cacheModule.getImageFromCache(
+  const cachedImage = await cacheModule.getImage(
     {
       name: 'testImage',
       contentType: 'image/jpeg',
@@ -55,7 +55,7 @@ test('Should not throw when caching', async () => {
 
   const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
   const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
-  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
   await cacheModule.init();
 
   const testImagePath = `${__dirname}/test_image_1.jpg`;
@@ -77,7 +77,7 @@ test('Should create image when caching', async () => {
 
   const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
   const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
-  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
   await cacheModule.init();
 
   const testImagePath = `${__dirname}/test_image_1.jpg`;
@@ -90,7 +90,7 @@ test('Should create image when caching', async () => {
   const testImageRequestedResolution = new Resolution(600, 600);
   await cacheModule.cacheImage(testImage, testImageRequestedResolution, testImageBuffer);
 
-  expect(fs.existsSync(Object.getPrototypeOf(cacheModule).getCacheImagePath(testImage, testImageRequestedResolution)));
+  expect(fs.existsSync(Object.getPrototypeOf(cacheModule).calculateImagePath(testImage, testImageRequestedResolution)));
 });
 
 test('Should get image from cache', async () => {
@@ -98,7 +98,7 @@ test('Should get image from cache', async () => {
 
   const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
   const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
-  const cacheModule = new CacheModule(storageDirectoryName, cacheDirectoryName);
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
   await cacheModule.init();
 
   const testImagePath = `${__dirname}/test_image_1.jpg`;
@@ -110,8 +110,35 @@ test('Should get image from cache', async () => {
   };
   const testImageRequestedResolution = new Resolution(600, 600);
   await cacheModule.cacheImage(testImage, testImageRequestedResolution, testImageBuffer);
-  const cachedImage = await cacheModule.getImageFromCache(testImage, testImageRequestedResolution);
+  const cachedImage = await cacheModule.getImage(testImage, testImageRequestedResolution);
 
   expect(cachedImage).toBeDefined();
   expect(cacheModule.getStats().cachedImages).toBe(1);
-})
+});
+
+test('Should delete image to make room', async () => {
+  const uniqueDirectoryName = 'test6';
+
+  const storageDirectoryName = STORAGE_DIRECTORY_NAME + uniqueDirectoryName;
+  const cacheDirectoryName = CACHE_DIRECTORY_NAME + uniqueDirectoryName;
+  const cacheModule = new OnDiskCacheModule(storageDirectoryName, cacheDirectoryName);
+  await cacheModule.init();
+
+  const testImagePath = `${__dirname}/test_image_1.jpg`;
+  const testImageBuffer = await fs.promises.readFile(testImagePath);
+  const testImage: Image = {
+    name: 'testImage2.jpg',
+    contentType: 'image/jpg',
+    size: (await fs.promises.stat(testImagePath)).size,
+  };
+  const testImageRequestedResolution = new Resolution(600, 600);
+  await cacheModule.cacheImage(testImage, testImageRequestedResolution, testImageBuffer);
+
+  const wasClearSuccessful = await cacheModule.requestMemoryClear(1);
+  expect(wasClearSuccessful).toBe(true);
+
+  expect(cacheModule.getStats().cachedImages).toBe(0);
+  expect(
+    fs.existsSync(Object.getPrototypeOf(cacheModule).calculateImagePath(testImage, testImageRequestedResolution)),
+  ).toBe(false);
+});

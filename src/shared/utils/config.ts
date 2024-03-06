@@ -4,15 +4,6 @@ import { num } from 'envalid/dist/validators';
 
 const NODE_ENV_CHOICES = ['dev', 'test', 'prod'];
 
-// const resolutionValidator = makeValidator<number>((input: string) => {
-//   const parsed = parseInt(input, 10);
-//   if (Number.isFinite(parsed) || Math.floor(parsed) != parsed) {
-//     throw new Error('Error validating env variables!');
-//   }
-//
-//   return Math.floor(parsed);
-// });
-
 dotenv.config();
 
 export const env = cleanEnv(process.env, {
@@ -27,4 +18,8 @@ export const env = cleanEnv(process.env, {
   MAX_RESOLUTION_WIDTH: num(),
   MIN_RESOLUTION_HEIGHT: num(),
   MIN_RESOLUTION_WIDTH: num(),
+
+  ENABLE_RATE_LIMITER: bool(),
+  RATE_LIMITER_MAX: num(),
+  RATE_LIMITER_WINDOW_MS: num(),
 });
