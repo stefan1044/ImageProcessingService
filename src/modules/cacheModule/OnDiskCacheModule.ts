@@ -146,8 +146,8 @@ export class OnDiskCacheModule implements ICacheModule {
     const totalRequests = this.cacheHits + this.cacheMisses;
     return {
       cachedImages: this.cachedImages.length,
-      cacheHitRatio: this.cacheHits / totalRequests,
-      cacheMissRatio: this.cacheMisses / totalRequests,
+      cacheHitRatio: this.cacheHits / totalRequests ?? 0,
+      cacheMissRatio: this.cacheMisses / totalRequests ?? 0,
     };
   }
 
