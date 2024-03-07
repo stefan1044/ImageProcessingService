@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { StatusCodes } from 'http-status-codes';
 
-import { env } from '../../../shared/utils/config';
+import { config } from '../../../shared/utils/config';
 import {
   ImageNotProvidedMessage,
   InvalidContentTypeMessage,
@@ -27,7 +27,7 @@ export class ImageUploadService {
     this.fileField = fileField;
     this.storageModule = storageModule;
 
-    this.allowNaming = env.ALLOW_NAMING;
+    this.allowNaming = config.env.ALLOW_NAMING;
     this.imageNameField = imageNameField;
   }
 

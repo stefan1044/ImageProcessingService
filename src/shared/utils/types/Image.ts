@@ -1,4 +1,4 @@
-import { env } from '../config';
+import { config } from '../config';
 
 export type ExtensionType = 'image/png' | 'image/jpg' | 'image/jpeg';
 
@@ -13,11 +13,11 @@ export class InvalidResolutionError extends Error {
 }
 
 export class Resolution {
-  private static readonly MAX_HEIGHT = env.MAX_RESOLUTION_HEIGHT;
-  private static readonly MIN_HEIGHT = env.MIN_RESOLUTION_HEIGHT;
+  private static readonly MAX_HEIGHT = config.env.MAX_RESOLUTION_HEIGHT;
+  private static readonly MIN_HEIGHT = config.env.MIN_RESOLUTION_HEIGHT;
 
-  private static readonly MAX_WIDTH = env.MAX_RESOLUTION_WIDTH;
-  private static readonly MIN_WIDTH = env.MIN_RESOLUTION_WIDTH;
+  private static readonly MAX_WIDTH = config.env.MAX_RESOLUTION_WIDTH;
+  private static readonly MIN_WIDTH = config.env.MIN_RESOLUTION_WIDTH;
 
   private readonly _height: number;
   private readonly _width: number;

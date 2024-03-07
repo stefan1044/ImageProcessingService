@@ -1,31 +1,11 @@
-import { NextFunction, Request, Response } from 'express';
-import { StatusCodes } from 'http-status-codes';
+import { IAuthModule } from './IAuthModule';
 
-import { InvalidTokenMessage, TokenNotPresentMessage } from '../../shared/utils/ErrorMessages';
+// This class Mocks an authentication microservice. It only validates tokens that end with the character 'a'.
+// Config, remote server url could be passed in constructor
+export class AuthModule implements IAuthModule {
+  constructor() {}
 
-export class AuthModule {
-  private authMiddleware(request: Request, response: Response, next: NextFunction) {
-    const authorizationHeader = request.header('Authorization');
-
-    if (authorizationHeader == undefined)
-      return response.status(StatusCodes.UNAUTHORIZED).json({
-        message: TokenNotPresentMessage,
-      });
-
-    if (!authorizationHeader.startsWith('Bearer '))
-      return response.status(StatusCodes.UNAUTHORIZED).json({
-        message: InvalidTokenMessage,
-      });
-
-    // This means we remove the 'Bearer ' part
-    const token = authorizationHeader.substring(7);
-    if (!token)
-      return response.status(StatusCodes.UNAUTHORIZED).json({
-        message: InvalidTokenMessage,
-      });
-  }
-
-  public getMiddleware() {
-    return (request: Request, response: Response, next: NextFunction) => this.authMiddleware(request, response, next);
+  public async verify(token: string): Promise<boolean> {
+    return token.endsWith('a');
   }
 }

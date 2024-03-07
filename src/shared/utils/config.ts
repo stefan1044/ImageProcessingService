@@ -6,7 +6,7 @@ const NODE_ENV_CHOICES = ['dev', 'test', 'prod'];
 
 dotenv.config();
 
-export const env = cleanEnv(process.env, {
+const env = cleanEnv(process.env, {
   NODE_ENV: str({ choices: NODE_ENV_CHOICES }),
   PORT: port(),
   DEST: str(),
@@ -25,4 +25,9 @@ export const env = cleanEnv(process.env, {
 
   ENABLE_AUTH: bool(),
   LOCAL_AUTH: bool(),
+  JWT_SECRET_KEY: str(),
 });
+
+export const config = {
+  env: env,
+};

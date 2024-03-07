@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import getSizeTransform from 'stream-size';
 
 import { logger } from '../../middlewares/LoggingMiddleware';
-import { env } from '../../shared/utils/config';
+import { config } from '../../shared/utils/config';
 import { MimetypeToExtensionMap } from '../../shared/utils/MimetypeToExtensionMap';
 import { FileNameCustomizationCallback } from '../../shared/utils/types/Callbacks';
 import { Image, isExtensionType, Resolution } from '../../shared/utils/types/Image';
@@ -170,7 +170,7 @@ export class PersistentStorageModule implements IPersistentStorageModule {
     file: Express.Multer.File,
     callback: (error?: unknown, info?: Partial<Express.Multer.File>) => void,
   ): void {
-    const sizedStream = file.stream.pipe(getSizeTransform(env.MAX_FILE_SIZE));
+    const sizedStream = file.stream.pipe(getSizeTransform(config.env.MAX_FILE_SIZE));
     const canUploadFile = this.canUploadFile(sizedStream.sizeInBytes);
 
     if (canUploadFile == CanUploadFileResponse.NOT_POSSIBLE) {
@@ -285,8 +285,8 @@ export class PersistentStorageModule implements IPersistentStorageModule {
         _removeFile: removeFile,
       },
       limits: {
-        fieldNameSize: env.MAX_NAME_SIZE,
-        fileSize: env.MAX_FILE_SIZE,
+        fieldNameSize: config.env.MAX_NAME_SIZE,
+        fileSize: config.env.MAX_FILE_SIZE,
       },
       fileFilter: this.multerFileFilter,
     }).single(fieldName);

@@ -6,7 +6,7 @@ import { pino } from 'pino';
 
 import { mountLoggingMiddleware } from '../middlewares/LoggingMiddleware';
 import { mountOnMountLogger } from '../middlewares/OnMountMiddleware';
-import { env } from '../shared/utils/config';
+import { config } from '../shared/utils/config';
 
 /**
  * Function used to mount general middleware onto our app.
@@ -16,12 +16,12 @@ import { env } from '../shared/utils/config';
 export function mountMiddlewares(app: express.Application, logger: pino.Logger): void {
   app.use(cors());
   app.use(helmet());
-  if (env.ENABLE_RATE_LIMITER) {
+  if (config.env.ENABLE_RATE_LIMITER) {
     app.use(
       rateLimit({
         legacyHeaders: true,
-        limit: env.RATE_LIMITER_MAX,
-        windowMs: env.RATE_LIMITER_WINDOW_MS,
+        limit: config.env.RATE_LIMITER_MAX,
+        windowMs: config.env.RATE_LIMITER_WINDOW_MS,
       }),
     );
   }

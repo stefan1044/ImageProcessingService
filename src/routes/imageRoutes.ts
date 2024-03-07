@@ -1,9 +1,12 @@
 import express from 'express';
 import Router from 'express-promise-router';
 
+import { AuthModule } from '../modules/authModule/AuthModule';
+import { AuthService } from '../modules/authService/AuthService';
 import { ImageDownloadService } from '../modules/images/imageDownloadService/ImageDownloadService';
 import { ImageUploadService } from '../modules/images/imageUploadService/ImageUploadService';
 import { IPersistentStorageModule } from '../modules/storage/IPersistentStorageModule';
+import { config } from '../shared/utils/config';
 
 // The field on the upload request which will contain the image
 const IMAGE_FIELD_NAME = 'image';
@@ -28,6 +31,12 @@ export function mountImageRoutes(app: express.Application, storageModule: IPersi
     RESOLUTION_QUERY_FIELD_NAME,
     storageModule,
   );
+
+  if (config.env.ENABLE_AUTH) {
+    const authService = new AuthService(config, new AuthModule());
+
+    imageRouter.use(authService.getMiddleware());
+  }
 
   imageRouter.post('/image', imageUploadService.getImageUploadMiddleware());
   imageRouter.get(`/image/:${IMAGE_PARAM_FIELD_NAME}`, imageDownloadService.getImageDownloadMiddleware());

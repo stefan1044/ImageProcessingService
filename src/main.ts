@@ -1,9 +1,9 @@
 import { logger } from './middlewares/LoggingMiddleware';
-import { env } from './shared/utils/config';
+import { config } from './shared/utils/config';
 import { app } from './server';
 
-const server = app.listen(env.PORT, () => {
-  logger.info(`Server running on port ${env.PORT}`);
+const server = app.listen(config.env.PORT, () => {
+  logger.info(`Server running on port ${config.env.PORT}`);
 });
 
 const onShutdown = () => {
