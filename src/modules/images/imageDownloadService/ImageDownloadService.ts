@@ -1,15 +1,16 @@
 import { NextFunction, Request, Response } from 'express';
-import { param, query, validationResult } from 'express-validator';
+import { param, validationResult } from 'express-validator';
 import { StatusCodes } from 'http-status-codes';
 
-import { logger } from '../../../middlewares/loggingMiddleware';
+import { logger } from '../../../middlewares/LoggingMiddleware';
+import {
+  GeneralErrorRetrievingImageMessage,
+  ImageNotFoundMessage,
+  ValidationErrorMessage,
+  WrongResolutionMessage,
+} from '../../../shared/utils/ErrorMessages';
 import { Resolution } from '../../../shared/utils/types/Image';
 import { IPersistentStorageModule } from '../../storage/IPersistentStorageModule';
-
-import { GeneralErrorRetrievingImageDto } from './dto/GeneralErrorRetrievingImageDto';
-import { ImageNotFoundDto } from './dto/ImageNotFoundDto';
-import { ValidationErrorDto } from './dto/ValidationErrorDto';
-import { WrongResolutionDto } from './dto/WrongResolutionDto';
 
 export class ImageDownloadService {
   private readonly fileNameParameter: string;
@@ -24,21 +25,30 @@ export class ImageDownloadService {
 
   private async downloadImage(request: Request, response: Response) {
     try {
-      // We can be sure that request.params[this.fileNameParameter] is a string because to get here it must have passed
-      // validation
+      let resolution;
+      if (request.body) {
+        resolution = request.body[this.resolutionQueryParameter];
+      }
+
       const imageData = await this.storageModule.getImage(
+        // We can be sure that request.params[this.fileNameParameter] is a string because to get here it must have passed
+        // validation
         request.params[this.fileNameParameter] as string,
-        request.body[this.resolutionQueryParameter],
+        resolution,
       );
 
       if (imageData == undefined) {
-        return response.status(StatusCodes.NOT_FOUND).json(ImageNotFoundDto());
+        return response.status(StatusCodes.NOT_FOUND).json({
+          message: ImageNotFoundMessage,
+        });
       }
 
       return response.contentType(imageData.image.contentType).send(imageData.buffer);
     } catch (err) {
       logger.error(err);
-      return response.status(StatusCodes.INTERNAL_SERVER_ERROR).json(GeneralErrorRetrievingImageDto());
+      return response.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: GeneralErrorRetrievingImageMessage,
+      });
     }
   }
 
@@ -56,9 +66,10 @@ export class ImageDownloadService {
 
   private validateInput(request: Request, response: Response, next: NextFunction) {
     const result = validationResult(request);
-
     if (!result.isEmpty()) {
-      return response.status(StatusCodes.BAD_REQUEST).json(ValidationErrorDto());
+      return response.status(StatusCodes.BAD_REQUEST).json({
+        message: ValidationErrorMessage,
+      });
     }
 
     const resolutionQueryParam = request.query[this.resolutionQueryParameter];
@@ -68,7 +79,9 @@ export class ImageDownloadService {
     }
 
     if (typeof resolutionQueryParam != 'string') {
-      return response.status(StatusCodes.BAD_REQUEST).json(ValidationErrorDto());
+      return response.status(StatusCodes.BAD_REQUEST).json({
+        message: ValidationErrorMessage,
+      });
     }
 
     try {
@@ -79,7 +92,9 @@ export class ImageDownloadService {
     } catch (err) {
       logger.error(err);
 
-      return response.status(StatusCodes.BAD_REQUEST).json(WrongResolutionDto());
+      return response.status(StatusCodes.BAD_REQUEST).json({
+        message: WrongResolutionMessage,
+      });
     }
 
     return next();
@@ -88,9 +103,6 @@ export class ImageDownloadService {
   public getImageDownloadMiddleware() {
     return [
       param(this.fileNameParameter),
-      query('resolution').optional({
-        values: 'undefined',
-      }),
       (request: Request, response: Response, next: NextFunction) => this.validateInput(request, response, next),
       (request: Request, response: Response) => this.downloadImage(request, response),
     ];

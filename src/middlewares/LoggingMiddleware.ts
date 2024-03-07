@@ -26,16 +26,6 @@ const customProps = (req: Request, res: Response): PinoCustomProps => ({
   responseBody: res.locals.responseBody,
 });
 
-// const responseBodyMiddleware: RequestHandler = (_req, res, next) => {
-//   const originalSend = res.send;
-//   res.send = function (content) {
-//     res.locals.responseBody = content;
-//     res.send = originalSend;
-//     return originalSend.call(res, content);
-//   };
-//   next();
-// };
-
 const customLogLevel = (_req: IncomingMessage, res: ServerResponse<IncomingMessage>, err?: Error): LevelWithSilent => {
   if (res.statusCode >= 400 && res.statusCode < 500) return 'warn';
   if (res.statusCode >= 500 || err) return 'error';
@@ -70,7 +60,4 @@ export function mountLoggingMiddleware(app: express.Application, options?: Optio
   };
 
   app.use(pinoHttp(pinoOptions));
-  // if (!env.isProduction) {
-  //   app.use(responseBodyMiddleware);
-  // }
 }

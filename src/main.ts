@@ -1,4 +1,4 @@
-import { logger } from './middlewares/loggingMiddleware';
+import { logger } from './middlewares/LoggingMiddleware';
 import { env } from './shared/utils/config';
 import { app } from './server';
 

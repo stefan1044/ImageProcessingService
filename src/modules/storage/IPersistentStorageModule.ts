@@ -3,7 +3,7 @@ import { RequestHandler } from 'express';
 import { FileNameCustomizationCallback } from '../../shared/utils/types/Callbacks';
 import { Resolution } from '../../shared/utils/types/Image';
 
-import { GetImageType, StorageStatistics } from './persistentStorageModule';
+import { GetImageType, StorageStatistics } from './PersistentStorageModule';
 
 /**
  * Interface for providing a persistent storage mechanism for images. The module is static since there should be a

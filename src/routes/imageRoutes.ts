@@ -22,7 +22,7 @@ const RESOLUTION_QUERY_FIELD_NAME = 'resolution';
  */
 export function mountImageRoutes(app: express.Application, storageModule: IPersistentStorageModule): void {
   const imageRouter = Router();
-  const imageUploadService = new ImageUploadService(IMAGE_FIELD_NAME, IMAGE_NAME_FIELD_NAME, storageModule);
+  const imageUploadService = new ImageUploadService(IMAGE_FIELD_NAME, storageModule, IMAGE_NAME_FIELD_NAME);
   const imageDownloadService = new ImageDownloadService(
     IMAGE_PARAM_FIELD_NAME,
     RESOLUTION_QUERY_FIELD_NAME,

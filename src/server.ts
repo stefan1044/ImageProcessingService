@@ -1,9 +1,9 @@
 import express, { Express } from 'express';
 
-import { mountDefaultRoute } from './middlewares/fallbackRoute';
-import { mountHealthCheck } from './middlewares/healthCheckRoute';
-import { logger } from './middlewares/loggingMiddleware';
-import { PersistentStorageModule } from './modules/storage/persistentStorageModule';
+import { mountDefaultRoute } from './middlewares/FallbackRoute';
+import { mountHealthCheck } from './middlewares/HealthCheckRoute';
+import { logger } from './middlewares/LoggingMiddleware';
+import { PersistentStorageModule } from './modules/storage/PersistentStorageModule';
 import { mountImageRoutes } from './routes/imageRoutes';
 import { mountMiddlewares } from './routes/middlewareRoutes';
 import { env } from './shared/utils/config';

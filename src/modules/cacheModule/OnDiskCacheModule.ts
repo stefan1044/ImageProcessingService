@@ -2,7 +2,7 @@ import fs from 'fs';
 import { mkdirp } from 'mkdirp';
 import { rimraf } from 'rimraf';
 
-import { logger } from '../../middlewares/loggingMiddleware';
+import { logger } from '../../middlewares/LoggingMiddleware';
 import PriorityQueue from '../../shared/priorityQueue/priorityQueue';
 import { CachedImage, Image, Resolution } from '../../shared/utils/types/Image';
 
@@ -24,8 +24,8 @@ export class OnDiskCacheModule implements ICacheModule {
   private readonly cachedImages: Array<CachedImage> = [];
   private readonly priorityQueue: PriorityQueue<CachedImage> = new PriorityQueue();
 
-  private cacheHitRatio: number = 0;
-  private cacheMissRatio: number = 0;
+  private cacheHits: number = 0;
+  private cacheMisses: number = 0;
 
   constructor(storageDirectoryName: string, cacheDirectoryName: string) {
     this.cacheDirectoryName = cacheDirectoryName;
@@ -121,14 +121,14 @@ export class OnDiskCacheModule implements ICacheModule {
     });
 
     if (cachedImage == undefined) {
-      this.cacheMissRatio++;
+      this.cacheMisses++;
 
       return undefined;
     }
 
     const cachedImageFilePath = this.calculateImagePath(image, resolution);
     try {
-      this.cacheHitRatio++;
+      this.cacheHits++;
       this.priorityQueue.modifyPriority(
         (cachedImage) => cachedImage.originalName == image.name && cachedImage.resolution == resolution,
         1,
@@ -143,10 +143,11 @@ export class OnDiskCacheModule implements ICacheModule {
   }
 
   public getStats(): CacheStatistics {
+    const totalRequests = this.cacheHits + this.cacheMisses;
     return {
       cachedImages: this.cachedImages.length,
-      cacheHitRatio: this.cacheHitRatio,
-      cacheMissRatio: this.cacheMissRatio,
+      cacheHitRatio: this.cacheHits / totalRequests,
+      cacheMissRatio: this.cacheMisses / totalRequests,
     };
   }
 

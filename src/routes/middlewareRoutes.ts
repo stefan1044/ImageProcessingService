@@ -4,8 +4,8 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { pino } from 'pino';
 
-import { mountLoggingMiddleware } from '../middlewares/loggingMiddleware';
-import { mountOnMountLogger } from '../middlewares/onMountMiddleware';
+import { mountLoggingMiddleware } from '../middlewares/LoggingMiddleware';
+import { mountOnMountLogger } from '../middlewares/OnMountMiddleware';
 import { env } from '../shared/utils/config';
 
 /**

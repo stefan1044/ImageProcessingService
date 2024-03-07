@@ -7,11 +7,12 @@ import * as Path from 'path';
 import sharp from 'sharp';
 import getSizeTransform from 'stream-size';
 
-import { logger } from '../../middlewares/loggingMiddleware';
+import { logger } from '../../middlewares/LoggingMiddleware';
 import { env } from '../../shared/utils/config';
+import { MimetypeToExtensionMap } from '../../shared/utils/MimetypeToExtensionMap';
 import { FileNameCustomizationCallback } from '../../shared/utils/types/Callbacks';
 import { Image, isExtensionType, Resolution } from '../../shared/utils/types/Image';
-import { CacheStatistics, OnDiskCacheModule } from '../cacheModule/onDiskCacheModule';
+import { CacheStatistics, OnDiskCacheModule } from '../cacheModule/OnDiskCacheModule';
 
 import { IPersistentStorageModule } from './IPersistentStorageModule';
 
@@ -85,7 +86,7 @@ export class PersistentStorageModule implements IPersistentStorageModule {
   public static async createInstance(
     storageDirectoryName: string,
     permanentStorageDirectoryName: string,
-  ): Promise<IPersistentStorageModule> {
+  ): Promise<PersistentStorageModule> {
     const instance = new PersistentStorageModule(storageDirectoryName, permanentStorageDirectoryName);
     await instance.init();
 
@@ -160,6 +161,10 @@ export class PersistentStorageModule implements IPersistentStorageModule {
     callback(null, true);
   }
 
+  private generateFileName(mimetype: string): string {
+    return `${crypto.randomUUID()}.${MimetypeToExtensionMap.get(mimetype)}`;
+  }
+
   private multerHandleFile(
     request: Request,
     file: Express.Multer.File,
@@ -172,7 +177,10 @@ export class PersistentStorageModule implements IPersistentStorageModule {
       callback(new Error('Insufficient size available!'));
       return;
     }
-    const fileName = this.fileNameCustomizationCallback(request, file);
+    let fileName = this.fileNameCustomizationCallback(request, file);
+    if (this.permanentImages.some((image) => image.name == fileName)) {
+      fileName = this.generateFileName(file.mimetype);
+    }
 
     if (canUploadFile == CanUploadFileResponse.NEEDS_CACHE_CLEAR) {
       this.cacheModule
@@ -234,7 +242,6 @@ export class PersistentStorageModule implements IPersistentStorageModule {
   private async getResizedImage(image: Image, resolution: Resolution): Promise<Buffer> {
     const cachedImage = await this.cacheModule.getImage(image, resolution);
     if (cachedImage != undefined) {
-      logger.info('Got from cache!');
       return cachedImage;
     }
 

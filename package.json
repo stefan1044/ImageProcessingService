@@ -8,7 +8,7 @@
     "dev-docker": "nodemon | pino-pretty",
     "build": "rimraf dist && tsc",
     "build-linux": "rm -rf dist; tsc",
-    "start": "tsx dist/src/index.js",
+    "start": "tsx dist/main.js",
     "test": "jest"
   },
   "keywords": [],
@@ -19,6 +19,7 @@
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.24",
+    "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^7.1.0",
     "@typescript-eslint/parser": "^7.1.0",
     "eslint": "^8.57.0",
@@ -29,6 +30,7 @@
     "nodemon": "^3.1.0",
     "pino-pretty": "^10.3.1",
     "prettier": "^3.2.5",
+    "supertest": "^6.3.4",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.1"

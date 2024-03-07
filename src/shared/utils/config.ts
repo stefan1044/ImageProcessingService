@@ -22,4 +22,7 @@ export const env = cleanEnv(process.env, {
   ENABLE_RATE_LIMITER: bool(),
   RATE_LIMITER_MAX: num(),
   RATE_LIMITER_WINDOW_MS: num(),
+
+  ENABLE_AUTH: bool(),
+  LOCAL_AUTH: bool(),
 });

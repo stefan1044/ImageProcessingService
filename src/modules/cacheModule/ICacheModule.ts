@@ -1,6 +1,6 @@
 import { Image, Resolution } from '../../shared/utils/types/Image';
 
-import { CacheStatistics } from './onDiskCacheModule';
+import { CacheStatistics } from './OnDiskCacheModule';
 
 /**
  * Interface for providing a caching module for storage.

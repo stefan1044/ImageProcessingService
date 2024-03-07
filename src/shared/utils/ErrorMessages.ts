@@ -1,0 +1,9 @@
+export const ImageNotProvidedMessage = 'Image was not found in body of request';
+export const InvalidContentTypeMessage = 'Invalid content-type provided!';
+export const UnknownErrorMessage = 'Unknown error occurred during image upload!';
+export const WrongResolutionMessage = 'Resolution provided was incorrect!';
+export const ValidationErrorMessage = 'Validation error occurred!';
+export const ImageNotFoundMessage = 'Image could not be found!';
+export const GeneralErrorRetrievingImageMessage = 'There was an error retrieving the image!';
+export const TokenNotPresentMessage = 'Authorization is required for request!';
+export const InvalidTokenMessage = 'Token is invalid or ill-formed!';
