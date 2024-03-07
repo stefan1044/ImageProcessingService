@@ -6,6 +6,7 @@ import { pino } from 'pino';
 
 import { mountLoggingMiddleware } from '../middlewares/LoggingMiddleware';
 import { mountOnMountLogger } from '../middlewares/OnMountMiddleware';
+import { mountSwaggerMiddleware } from '../middlewares/SwaggerMiddleware';
 import { config } from '../shared/utils/config';
 
 /**
@@ -28,4 +29,5 @@ export function mountMiddlewares(app: express.Application, logger: pino.Logger):
 
   mountOnMountLogger(app, logger);
   mountLoggingMiddleware(app);
+  mountSwaggerMiddleware(app);
 }
